@@ -529,7 +529,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
         }
         
         // Add last highlight
-		if (previousRect.size.width > 0.0 && previousRect.size.height > 0.0)
+		if ((previousRect.size.width > 0.0 && previousRect.size.height > 0.0) || [highlightsForRange count] == 0)
 		{
 			UIView *highlight = inserts ? [self addHighlightAtRect:previousRect] : [self createHighlightForRect:previousRect];
         	[highlightsForRange addObject:highlight];
