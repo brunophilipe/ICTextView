@@ -74,6 +74,21 @@ NS_INLINE BOOL ICCGFloatEqualOnScreen(CGFloat f1, CGFloat f2)
     return (ABS(f1 - f2) < epsilon);
 }
 
+NS_INLINE BOOL ICCGRectsAdjacent(CGRect r1, CGRect r2)
+{
+	return ICCGFloatEqualOnScreen(r1.origin.y, r2.origin.y)
+			&& ICCGFloatEqualOnScreen(r1.origin.x, CGRectGetMaxX(r2))
+			&& ICCGFloatEqualOnScreen(r1.size.height, r2.size.height);
+}
+
+NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
+{
+	return ICCGFloatEqualOnScreen(r1.origin.x, r2.origin.x)
+			&& ICCGFloatEqualOnScreen(r1.origin.y, r2.origin.y)
+			&& ICCGFloatEqualOnScreen(r1.size.width, r2.size.width)
+			&& ICCGFloatEqualOnScreen(r1.size.height, r2.size.height);
+}
+
 #pragma mark - Extension
 
 @interface ICTextView ()
@@ -450,12 +465,19 @@ NS_INLINE BOOL ICCGFloatEqualOnScreen(CGFloat f1, CGFloat f2)
 #pragma mark - Private methods
 
 // Return value: highlight UIView
+- (UIView *)createHighlightForRect:(CGRect)frame
+{
+	UIView *highlight = [[UIView alloc] initWithFrame:frame];
+	CGFloat cornerRadius = self.highlightCornerRadius;
+	highlight.layer.cornerRadius = (cornerRadius < 0.0 ? frame.size.height * 0.2f : cornerRadius);
+	highlight.backgroundColor = self.secondaryHighlightColor;
+	return highlight;
+}
+
+// Return value: highlight UIView
 - (UIView *)addHighlightAtRect:(CGRect)frame
 {
-    UIView *highlight = [[UIView alloc] initWithFrame:frame];
-    CGFloat cornerRadius = self.highlightCornerRadius;
-    highlight.layer.cornerRadius = (cornerRadius < 0.0 ? frame.size.height * 0.2f : cornerRadius);
-    highlight.backgroundColor = self.secondaryHighlightColor;
+	UIView *highlight = [self createHighlightForRect:frame];
     [self.secondaryHighlights addObject:highlight];
     [self insertSubview:highlight belowSubview:self.textSubview];
     return highlight;
@@ -463,6 +485,12 @@ NS_INLINE BOOL ICCGFloatEqualOnScreen(CGFloat f1, CGFloat f2)
 
 // Return value: array of highlights for text range
 - (NSMutableArray *)addHighlightAtTextRange:(UITextRange *)textRange
+{
+	return [self addHighlightAtTextRange:textRange insertsIntoSecondaryHighlights:YES];
+}
+
+// Return value: array of highlights for text range
+- (NSMutableArray *)addHighlightAtTextRange:(UITextRange *)textRange insertsIntoSecondaryHighlights:(BOOL)inserts
 {
     NSMutableArray *highlightsForRange = [[NSMutableArray alloc] init];
     
@@ -478,23 +506,34 @@ NS_INLINE BOOL ICCGFloatEqualOnScreen(CGFloat f1, CGFloat f2)
         {
             CGRect currentRect = selectionRect.rect;
             
-            if (ICCGFloatEqualOnScreen(currentRect.origin.y, previousRect.origin.y) &&
-                ICCGFloatEqualOnScreen(currentRect.origin.x, CGRectGetMaxX(previousRect)) &&
-                ICCGFloatEqualOnScreen(currentRect.size.height, previousRect.size.height))
+            if (ICCGRectsAdjacent(currentRect, previousRect))
             {
                 // Adjacent, add to previous rect
-                previousRect = CGRectMake(previousRect.origin.x, previousRect.origin.y, previousRect.size.width + currentRect.size.width, previousRect.size.height);
+				previousRect = CGRectUnion(previousRect, currentRect);
             }
-            else
+			else if (ICCGRectsEqualOnScreen(currentRect, previousRect))
+			{
+				continue;
+			}
+            else if (previousRect.size.width > 0.0 && previousRect.size.height > 0.0)
             {
                 // Not adjacent, add previous rect to highlights array
-                [highlightsForRange addObject:[self addHighlightAtRect:previousRect]];
+				UIView *highlight = inserts ? [self addHighlightAtRect:previousRect] : [self createHighlightForRect:previousRect];
+                [highlightsForRange addObject:highlight];
                 previousRect = currentRect;
             }
+			else
+			{
+				previousRect = currentRect;
+			}
         }
         
         // Add last highlight
-        [highlightsForRange addObject:[self addHighlightAtRect:previousRect]];
+		if (previousRect.size.width > 0.0 && previousRect.size.height > 0.0)
+		{
+			UIView *highlight = inserts ? [self addHighlightAtRect:previousRect] : [self createHighlightForRect:previousRect];
+        	[highlightsForRange addObject:highlight];
+		}
     }
     else
 #endif
@@ -521,7 +560,8 @@ NS_INLINE BOOL ICCGFloatEqualOnScreen(CGFloat f1, CGFloat f2)
                 start = lineEnd;
             }
             previousRect = [self firstRectForRange:textRange];
-            [highlightsForRange addObject:[self addHighlightAtRect:previousRect]];
+			UIView *highlight = inserts ? [self addHighlightAtRect:previousRect] : [self createHighlightForRect:previousRect];
+            [highlightsForRange addObject:highlight];
         } while (hasMoreLines);
     }
     return highlightsForRange;
