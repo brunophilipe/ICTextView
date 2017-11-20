@@ -66,10 +66,12 @@ static BOOL shouldApplyTextContainerFix = NO;
 
 NS_INLINE BOOL ICCGFloatEqualOnScreen(CGFloat f1, CGFloat f2)
 {
-    static CGFloat epsilon = CGFLOAT_MIN;
+    static CGFloat epsilon = -1;
     
     if (epsilon < 0.0f)
+	{
         epsilon = (1.0f / [[UIScreen mainScreen] scale]);
+	}
     
     return (ABS(f1 - f2) < epsilon);
 }
@@ -77,7 +79,7 @@ NS_INLINE BOOL ICCGFloatEqualOnScreen(CGFloat f1, CGFloat f2)
 NS_INLINE BOOL ICCGRectsAdjacent(CGRect r1, CGRect r2)
 {
 	return ICCGFloatEqualOnScreen(r1.origin.y, r2.origin.y)
-			&& ICCGFloatEqualOnScreen(r1.origin.x, CGRectGetMaxX(r2))
+			&& (ICCGFloatEqualOnScreen(r1.origin.x, CGRectGetMaxX(r2)) || ICCGFloatEqualOnScreen(r2.origin.x, CGRectGetMaxX(r1)))
 			&& ICCGFloatEqualOnScreen(r1.size.height, r2.size.height);
 }
 
@@ -527,9 +529,11 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 				previousRect = currentRect;
 			}
         }
-        
+
+		BOOL differentLine = !ICCGFloatEqualOnScreen(previousRect.origin.y, [[highlightsForRange lastObject] frame].origin.y);
+
         // Add last highlight
-		if ((previousRect.size.width > 0.0 && previousRect.size.height > 0.0) || [highlightsForRange count] == 0)
+		if ((previousRect.size.width > 0.0 && previousRect.size.height > 0.0) || [highlightsForRange count] == 0 || differentLine)
 		{
 			UIView *highlight = inserts ? [self addHighlightAtRect:previousRect] : [self createHighlightForRect:previousRect];
         	[highlightsForRange addObject:highlight];
