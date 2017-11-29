@@ -507,6 +507,12 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
         for (UITextSelectionRect *selectionRect in highlightRects)
         {
             CGRect currentRect = selectionRect.rect;
+
+			if (currentRect.origin.x == INFINITY || currentRect.origin.y == INFINITY)
+			{
+				currentRect = [self caretRectForPosition:textRange.start];
+				currentRect.size.width = 0.0;
+			}
             
             if (ICCGRectsAdjacent(currentRect, previousRect))
             {
