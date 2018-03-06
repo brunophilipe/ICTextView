@@ -43,6 +43,8 @@
 
 #import <UIKit/UIKit.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 #pragma mark Constants
 
 /// Scroll position for ICTextView's scroll and search methods.
@@ -85,10 +87,10 @@ typedef enum
 #pragma mark -- Appearance --
 
 /// Color of the primary search highlight (default = RGB 150/200/255).
-@property (nonatomic, strong) UIColor *primaryHighlightColor UI_APPEARANCE_SELECTOR;
+@property (nonatomic, strong, nonnull) UIColor *primaryHighlightColor UI_APPEARANCE_SELECTOR;
 
 /// Color of the secondary search highlights (default = RGB 215/240/255).
-@property (nonatomic, strong) UIColor *secondaryHighlightColor UI_APPEARANCE_SELECTOR;
+@property (nonatomic, strong, nonnull) UIColor *secondaryHighlightColor UI_APPEARANCE_SELECTOR;
 
 /// Highlight corner radius (default = fontSize * 0.2).
 @property (nonatomic) CGFloat highlightCornerRadius UI_APPEARANCE_SELECTOR;
@@ -138,7 +140,7 @@ typedef enum
 #pragma mark - Output
 
 /// String found during last search.
-- (NSString *)foundString;
+- (nullable NSString *)foundString;
 
 /// Index of the string found during last search (NSNotFound if not found).
 - (NSUInteger)indexOfFoundString;
@@ -148,6 +150,9 @@ typedef enum
 
 /// Range of the string found during last search ({ NSNotFound, 0 } if not found).
 - (NSRange)rangeOfFoundString;
+
+/// The text matching result of the last search
+- (nullable NSTextCheckingResult *)foundCheckingResult;
 
 #pragma mark - Search
 
@@ -161,7 +166,7 @@ typedef enum
  
  @return YES if found, NO otherwise.
  */
-- (BOOL)scrollToMatch:(NSString *)pattern;
+- (BOOL)scrollToMatch:(nonnull NSString *)pattern;
 
 /**
  Scrolls to next regex match.
@@ -173,7 +178,7 @@ typedef enum
  
  @return YES if found, NO otherwise.
  */
-- (BOOL)scrollToMatch:(NSString *)pattern searchDirection:(ICTextViewSearchDirection)searchDirection;
+- (BOOL)scrollToMatch:(nonnull NSString *)pattern searchDirection:(ICTextViewSearchDirection)searchDirection;
 
 /**
  Scrolls to next matching string.
@@ -182,7 +187,7 @@ typedef enum
  
  @return YES if found, NO otherwise.
  */
-- (BOOL)scrollToString:(NSString *)stringToFind;
+- (BOOL)scrollToString:(nonnull NSString *)stringToFind;
 
 /**
  Scrolls to next matching string.
@@ -194,7 +199,7 @@ typedef enum
  
  @return YES if found, NO otherwise.
  */
-- (BOOL)scrollToString:(NSString *)stringToFind searchDirection:(ICTextViewSearchDirection)searchDirection;
+- (BOOL)scrollToString:(nonnull NSString *)stringToFind searchDirection:(ICTextViewSearchDirection)searchDirection;
 
 #pragma mark - Misc
 
@@ -242,7 +247,9 @@ typedef enum
  
  @return Visible text range.
  */
-- (NSRange)visibleRangeConsideringInsets:(BOOL)considerInsets startPosition:(UITextPosition *__autoreleasing *)startPosition endPosition:(UITextPosition *__autoreleasing *)endPosition;
+- (NSRange)visibleRangeConsideringInsets:(BOOL)considerInsets
+						   startPosition:(UITextPosition * _Nullable __autoreleasing *_Nullable)startPosition
+							 endPosition:(UITextPosition * _Nullable __autoreleasing *_Nullable)endPosition;
 
 /**
  Currently visible rect.
@@ -253,19 +260,29 @@ typedef enum
  */
 - (CGRect)visibleRectConsideringInsets:(BOOL)considerInsets;
 
+/**
+ Replace the current result (if any) with the given template.
+
+ @param template The template to insert in place of the matched result.
+ @return `YES` if the replacement was successful, otherwise `NO`.
+ */
+- (BOOL)replaceCurrentResultWithTemplate:(nonnull NSString *)template;
+
 #pragma mark - Deprecated
 
-- (BOOL)scrollToMatch:(NSString *)pattern searchOptions:(NSRegularExpressionOptions)options __deprecated;
-- (BOOL)scrollToMatch:(NSString *)pattern searchOptions:(NSRegularExpressionOptions)options range:(NSRange)range __deprecated;
-- (BOOL)scrollToMatch:(NSString *)pattern searchOptions:(NSRegularExpressionOptions)options animated:(BOOL)animated atScrollPosition:(ICTextViewScrollPosition)scrollPosition __deprecated;
-- (BOOL)scrollToMatch:(NSString *)pattern searchOptions:(NSRegularExpressionOptions)options range:(NSRange)range animated:(BOOL)animated atScrollPosition:(ICTextViewScrollPosition)scrollPosition __deprecated;
+- (BOOL)scrollToMatch:(nullable NSString *)pattern searchOptions:(NSRegularExpressionOptions)options __deprecated;
+- (BOOL)scrollToMatch:(nullable NSString *)pattern searchOptions:(NSRegularExpressionOptions)options range:(NSRange)range __deprecated;
+- (BOOL)scrollToMatch:(nullable NSString *)pattern searchOptions:(NSRegularExpressionOptions)options animated:(BOOL)animated atScrollPosition:(ICTextViewScrollPosition)scrollPosition __deprecated;
+- (BOOL)scrollToMatch:(nullable NSString *)pattern searchOptions:(NSRegularExpressionOptions)options range:(NSRange)range animated:(BOOL)animated atScrollPosition:(ICTextViewScrollPosition)scrollPosition __deprecated;
 
-- (BOOL)scrollToString:(NSString *)stringToFind searchOptions:(NSRegularExpressionOptions)options __deprecated;
-- (BOOL)scrollToString:(NSString *)stringToFind searchOptions:(NSRegularExpressionOptions)options range:(NSRange)range __deprecated;
-- (BOOL)scrollToString:(NSString *)stringToFind searchOptions:(NSRegularExpressionOptions)options animated:(BOOL)animated atScrollPosition:(ICTextViewScrollPosition)scrollPosition __deprecated;
-- (BOOL)scrollToString:(NSString *)stringToFind searchOptions:(NSRegularExpressionOptions)options range:(NSRange)range animated:(BOOL)animated atScrollPosition:(ICTextViewScrollPosition)scrollPosition __deprecated;
+- (BOOL)scrollToString:(nullable NSString *)stringToFind searchOptions:(NSRegularExpressionOptions)options __deprecated;
+- (BOOL)scrollToString:(nullable NSString *)stringToFind searchOptions:(NSRegularExpressionOptions)options range:(NSRange)range __deprecated;
+- (BOOL)scrollToString:(nullable NSString *)stringToFind searchOptions:(NSRegularExpressionOptions)options animated:(BOOL)animated atScrollPosition:(ICTextViewScrollPosition)scrollPosition __deprecated;
+- (BOOL)scrollToString:(nullable NSString *)stringToFind searchOptions:(NSRegularExpressionOptions)options range:(NSRange)range animated:(BOOL)animated atScrollPosition:(ICTextViewScrollPosition)scrollPosition __deprecated;
 
 - (void)scrollRangeToVisible:(NSRange)range consideringInsets:(BOOL)considerInsets animated:(BOOL)animated atScrollPosition:(ICTextViewScrollPosition)scrollPosition __deprecated;
 - (void)scrollRectToVisible:(CGRect)rect animated:(BOOL)animated consideringInsets:(BOOL)considerInsets atScrollPosition:(ICTextViewScrollPosition)scrollPosition __deprecated;
 
 @end
+
+NS_ASSUME_NONNULL_END

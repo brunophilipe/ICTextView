@@ -43,7 +43,8 @@
 
 @interface ICRegularExpression ()
 
-@property (nonatomic, strong, readonly) NSMutableArray *cachedMatchRanges;
+@property (nonatomic, strong, readonly) NSMutableArray<NSTextCheckingResult *> *cachedMatchResults;
+@property (nonatomic, strong, readonly) NSMutableArray<NSValue *> *cachedMatchRanges;
 @property (nonatomic, strong, readonly) NSRegularExpression *regex;
 
 @property (nonatomic, readwrite) NSUInteger indexOfCurrentMatch;
@@ -64,6 +65,8 @@
     if (!_cachedMatchRanges)
     {
         NSMutableArray *cachedMatchRanges = [[NSMutableArray alloc] init];
+		NSMutableArray *cachedMatchResults = [[NSMutableArray alloc] init];
+
         NSString *string = self.string;
         [self.regex enumerateMatchesInString:string
                                      options:(NSMatchingOptions)0
@@ -71,9 +74,11 @@
                                   usingBlock:^(NSTextCheckingResult *result, NSMatchingFlags flags, BOOL *stop) {
                                       ICUnusedParameter(flags, stop);
                                       [cachedMatchRanges addObject:[NSValue valueWithRange:result.range]];
+									  [cachedMatchResults addObject:result];
                                   }];
         
         _cachedMatchRanges = cachedMatchRanges;
+		_cachedMatchResults = cachedMatchResults;
     }
     return _cachedMatchRanges;
 }
@@ -141,6 +146,8 @@
 {
     return self.regex.pattern;
 }
+
+// Accessing results by range
 
 - (NSRange)rangeOfCurrentMatch
 {
@@ -212,6 +219,113 @@
 {
     NSRange indexRange = [self indexRangeOfMatchesInRange:range];
     return (NSEqualRanges(indexRange, ICRangeNotFound) ? [NSArray array] : [self.cachedMatchRanges subarrayWithRange:indexRange]);
+}
+
+// Accessing results by result
+
+- (nullable NSTextCheckingResult *)resultOfCurrentMatch
+{
+	return [self resultOfMatchAtIndex:self.indexOfCurrentMatch];
+}
+
+- (nullable NSTextCheckingResult *)resultOfFirstMatch
+{
+	return [self resultOfMatchAtIndex:0];
+}
+
+- (nullable NSTextCheckingResult *)resultOfFirstMatchInRange:(NSRange)range
+{
+	return [self resultOfMatchAtIndex:[self indexOfFirstMatchInRange:range]];
+}
+
+- (nullable NSTextCheckingResult *)resultOfLastMatch
+{
+	return [self resultOfMatchAtIndex:self.numberOfMatches - 1];
+}
+
+- (nullable NSTextCheckingResult *)resultOfLastMatchInRange:(NSRange)range
+{
+	return [self resultOfMatchAtIndex:[self indexOfLastMatchInRange:range]];
+}
+
+- (nullable NSTextCheckingResult *)resultOfMatchAtIndex:(NSUInteger)index
+{
+	NSTextCheckingResult *returnResult = nil;
+
+	if (index < self.numberOfMatches)
+	{
+		self.indexOfCurrentMatch = index;
+		returnResult = [self.cachedMatchResults objectAtIndex:index];
+	}
+	else
+		self.indexOfCurrentMatch = NSNotFound;
+
+	return returnResult;
+}
+
+- (nullable NSTextCheckingResult *)resultOfNextMatch
+{
+	NSUInteger current = self.indexOfCurrentMatch;
+	NSTextCheckingResult *returnResult = nil;
+
+	if (current == NSNotFound || (self.circular && current == (self.numberOfMatches - 1)))
+		returnResult = [self resultOfMatchAtIndex:0];
+	else
+		returnResult = [self resultOfMatchAtIndex:current + 1];
+
+	return returnResult;
+}
+
+- (nullable NSTextCheckingResult *)resultOfPreviousMatch
+{
+	NSUInteger current = self.indexOfCurrentMatch;
+	NSTextCheckingResult *returnResult = nil;
+
+	if (current == NSNotFound || (self.circular && current == 0))
+		returnResult = [self resultOfMatchAtIndex:(self.numberOfMatches - 1)];
+	else
+		returnResult = [self resultOfMatchAtIndex:current - 1];
+
+	return returnResult;
+}
+
+- (nonnull NSArray<NSTextCheckingResult *> *)resultsOfMatchesInRange:(NSRange)range
+{
+	NSRange indexRange = [self indexRangeOfMatchesInRange:range];
+	return (NSEqualRanges(indexRange, ICRangeNotFound) ? [NSArray array] : [self.cachedMatchResults subarrayWithRange:indexRange]);
+}
+
+#pragma mark - Replacement Helpers
+
+- (void)advanceToFirstResultAfterLocation:(NSUInteger)location
+{
+	if ([_cachedMatchResults count] == 0)
+	{
+		return;
+	}
+
+	NSUInteger index = 0;
+	NSUInteger newIndex = NSNotFound;
+
+	for (NSTextCheckingResult *result in _cachedMatchResults)
+	{
+		if (result.range.location >= location)
+		{
+			newIndex = index;
+			break;
+		}
+
+		index++;
+	}
+
+	if (newIndex == NSNotFound)
+	{
+		_indexOfCurrentMatch = 0;
+	}
+	else
+	{
+		_indexOfCurrentMatch = newIndex;
+	}
 }
 
 #pragma mark - Private methods

@@ -42,6 +42,8 @@
 
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 #pragma mark Interface
 
 @interface ICRegularExpression : NSObject
@@ -72,5 +74,23 @@
 - (NSRange)rangeOfPreviousMatch;
 
 - (NSArray *)rangesOfMatchesInRange:(NSRange)range;
+
+//
+
+- (nullable NSTextCheckingResult *)resultOfCurrentMatch;
+- (nullable NSTextCheckingResult *)resultOfFirstMatch;
+- (nullable NSTextCheckingResult *)resultOfFirstMatchInRange:(NSRange)range;
+- (nullable NSTextCheckingResult *)resultOfLastMatch;
+- (nullable NSTextCheckingResult *)resultOfLastMatchInRange:(NSRange)range;
+- (nullable NSTextCheckingResult *)resultOfMatchAtIndex:(NSUInteger)index;
+- (nullable NSTextCheckingResult *)resultOfNextMatch;
+- (nullable NSTextCheckingResult *)resultOfPreviousMatch;
+- (NSArray<NSTextCheckingResult *> *)resultsOfMatchesInRange:(NSRange)range;
+
+// replacement helpers
+
+- (void)advanceToFirstResultAfterLocation:(NSUInteger)location;
+
+NS_ASSUME_NONNULL_END
 
 @end

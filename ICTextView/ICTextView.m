@@ -241,6 +241,11 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
     return (regex ? ICRangeOffset(regex.rangeOfCurrentMatch, self.cachedRange.location) : ICRangeNotFound);
 }
 
+- (NSTextCheckingResult *)foundCheckingResult
+{
+	return [[self regex] resultOfCurrentMatch];
+}
+
 #pragma mark - Search
 
 - (void)resetSearch
@@ -296,30 +301,8 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
         
         self.searchIndex = ICSearchIndexAuto;
     }
-    
-    NSRange matchRange = [self rangeOfFoundString];
-    BOOL found = NO;
-    
-    if (matchRange.location == NSNotFound)
-    {
-        // Match not found
-        self.searching = NO;
-    }
-    else
-    {
-        // Match found
-        found = YES;
-        self.searchVisibleRange = NO;
-        
-        // Add highlights
-        if (highlightingSupported && self.highlightSearchResults)
-            [self highlightOccurrencesInMaskedVisibleRange];
-        
-        // Scroll
-        [self scrollRangeToVisible:matchRange consideringInsets:YES animated:self.animatedSearch];
-    }
-    
-    return found;
+
+	return [self commitMatchingIfFound];
 }
 
 - (BOOL)scrollToString:(NSString *)stringToFind
@@ -464,7 +447,102 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
     return visibleRect;
 }
 
+#pragma mark - Replacement
+
+- (BOOL)replaceCurrentResultWithTemplate:(nonnull NSString *)template
+{
+	NSTextCheckingResult *result = [_regex resultOfCurrentMatch];
+	NSRegularExpression *regex = [result regularExpression];
+	NSString *originalPattern = [_regex pattern];
+
+	if (!result || !regex) return NO;
+
+	// Produce the replacement string in memory, without changing the text storage.
+	NSString *replacementString = [regex replacementStringForResult:result
+														   inString:[[self textStorage] string]
+															 offset:0
+														   template:template];
+
+	// Calculate how many characters we will add to the text storage (negative if we replaced for less characters)
+	NSUInteger lengthDelta = [replacementString length] - [result range].length;
+
+	// Find the next result range for reference before resetting the search
+	NSTextCheckingResult *nextResult = [_regex resultOfNextMatch];
+	NSUInteger locationOfNextResultPlusDelta = nextResult.range.location + lengthDelta;
+
+	[self replaceRangeRegisteringUndo:result.range withString:replacementString];
+	[self textChanged];
+
+	// Re-Initialize search
+	if (![self initializeSearchWithPattern:originalPattern])
+		return NO;
+
+	self.searching = YES;
+
+	// Cache the new ranges
+	[_regex matchLocationsRange];
+
+	// Go to the next range from the location after the last inserted character (to avoid immediatelly matching the
+	// inserted text). If the "next result" is before the current result, it means the search has wrapped, so we
+	// are now safe to start replacing before the replaced text.
+	if (nextResult.range.location < result.range.location)
+	{
+		[_regex advanceToFirstResultAfterLocation:nextResult.range.location];
+	}
+	else
+	{
+		[_regex advanceToFirstResultAfterLocation:locationOfNextResultPlusDelta];
+	}
+
+	return [self commitMatchingIfFound];
+}
+
 #pragma mark - Private methods
+
+- (void)replaceRangeRegisteringUndo:(NSRange)range withString:(nonnull NSString *)replacement
+{
+	NSTextStorage *textStorage = [self textStorage];
+	NSUndoManager *undoManager = [self undoManager];
+
+	if (undoManager)
+	{
+		NSString *originalString = [[textStorage string] substringWithRange:range];
+		NSRange undoRange = NSMakeRange(range.location, [replacement length]);
+
+		[[self undoManager] registerUndoWithTarget:self handler:^(id  _Nonnull target) {
+			[target replaceRangeRegisteringUndo:undoRange withString:originalString];
+		}];
+	}
+
+	[textStorage replaceCharactersInRange:range withString:replacement];
+}
+
+- (BOOL)commitMatchingIfFound
+{
+	NSRange matchRange = [self rangeOfFoundString];
+	BOOL found = NO;
+
+	if (matchRange.location == NSNotFound)
+	{
+		// Match not found
+		self.searching = NO;
+	}
+	else
+	{
+		// Match found
+		found = YES;
+		self.searchVisibleRange = NO;
+
+		// Add highlights
+		if (highlightingSupported && self.highlightSearchResults)
+			[self highlightOccurrencesInMaskedVisibleRange];
+
+		// Scroll
+		[self scrollRangeToVisible:matchRange consideringInsets:YES animated:self.animatedSearch];
+	}
+
+	return found;
+}
 
 // Return value: highlight UIView
 - (UIView *)createHighlightForRect:(CGRect)frame
