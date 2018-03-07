@@ -266,7 +266,7 @@ typedef enum
  @param template The template to insert in place of the matched result.
  @return `YES` if the replacement was successful, otherwise `NO`.
  */
-- (BOOL)replaceCurrentResultWithTemplate:(nonnull NSString *)template;
+- (BOOL)replaceCurrentMatchWithTemplate:(nonnull NSString *)template;
 
 #pragma mark - Deprecated
 

@@ -39,6 +39,7 @@
 #import "ICPreprocessor.h"
 #import "ICRangeUtils.h"
 #import "ICRegularExpression.h"
+#import "UIColor+ColorsSeries.h"
 
 #import <Availability.h>
 #import <QuartzCore/QuartzCore.h>
@@ -47,6 +48,9 @@
 
 static NSUInteger const ICSearchIndexAuto = NSUIntegerMax;
 static NSTimeInterval const ICMinScrollAutoRefreshDelay = 0.1;
+
+// UIView tag value used to identify a highlight view as a subrange view
+static NSInteger const ICSubRangeViewTag = 10;
 
 #pragma mark - Globals
 
@@ -449,7 +453,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 
 #pragma mark - Replacement
 
-- (BOOL)replaceCurrentResultWithTemplate:(nonnull NSString *)template
+- (BOOL)replaceCurrentMatchWithTemplate:(nonnull NSString *)template
 {
 	NSTextCheckingResult *result = [_regex resultOfCurrentMatch];
 	NSRegularExpression *regex = [result regularExpression];
@@ -544,13 +548,32 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 	return found;
 }
 
+- (void)configureHighlightAsPrimary:(UIView *)highlight
+{
+	highlight.layer.borderColor = [self.primaryHighlightColor CGColor];
+	highlight.backgroundColor = [self.primaryHighlightColor colorWithAlphaComponent:0.4];
+}
+
+- (void)configureHighlightAsSecondary:(UIView *)highlight
+{
+	highlight.layer.borderColor = [self.secondaryHighlightColor CGColor];
+	highlight.backgroundColor = [self.secondaryHighlightColor colorWithAlphaComponent:0.05];
+}
+
+- (void)configureHighlightAsSubRange:(UIView *)highlight index:(NSUInteger)index
+{
+	highlight.layer.borderColor = [[UIColor colorSeriesWithIndex:index] CGColor];
+	highlight.backgroundColor = [UIColor clearColor];
+}
+
 // Return value: highlight UIView
 - (UIView *)createHighlightForRect:(CGRect)frame
 {
-	UIView *highlight = [[UIView alloc] initWithFrame:frame];
+	UIView *highlight = [[UIView alloc] initWithFrame:CGRectInset(frame, 0.0, 0.5)];
 	CGFloat cornerRadius = self.highlightCornerRadius;
 	highlight.layer.cornerRadius = (cornerRadius < 0.0 ? frame.size.height * 0.2f : cornerRadius);
-	highlight.backgroundColor = self.secondaryHighlightColor;
+	highlight.layer.borderWidth = 1.0;
+	[self configureHighlightAsSecondary:highlight];
 	return highlight;
 }
 
@@ -559,18 +582,98 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 {
 	UIView *highlight = [self createHighlightForRect:frame];
     [self.secondaryHighlights addObject:highlight];
-    [self insertSubview:highlight belowSubview:self.textSubview];
+    [self insertSubview:highlight aboveSubview:self.textSubview];
     return highlight;
 }
 
 // Return value: array of highlights for text range
 - (NSMutableArray *)addHighlightAtTextRange:(UITextRange *)textRange
 {
-	return [self addHighlightAtTextRange:textRange insertsIntoSecondaryHighlights:YES];
+	return [self addHighlightAtTextRange:textRange addToView:YES];
+}
+
+- (NSMutableArray *)addHighlightAtTextRange:(UITextRange *)textRange subranges:(NSArray<UITextRange *> *)subranges addToView:(BOOL)inserts
+{
+	NSMutableArray<UIView *> *views = [NSMutableArray array];
+
+	if (subranges && [subranges count] > 0)
+	{
+		for (NSUInteger index = 0, count = [subranges count]; index < count; index++)
+		{
+			UITextRange *textRange = [subranges objectAtIndex:index];
+
+			if ([textRange isEmpty])
+			{
+				// Don't draw zero length subranges
+				continue;
+			}
+
+			NSMutableArray<UIView *> *subviews = [self addHighlightAtTextRange:textRange addToView:inserts];
+
+			// Configure as subranges
+			[subviews enumerateObjectsUsingBlock:^(UIView * _Nonnull subview, NSUInteger _idx, BOOL * _Nonnull stop) {
+				ICUnusedParameter(_idx);
+				ICUnusedParameter(stop);
+				[self configureHighlightAsSubRange:subview index:index];
+				subview.tag = ICSubRangeViewTag;
+
+				// Inset the view a little bit, to show the border of the main view
+				subview.frame = CGRectInset(subview.frame, 0.0, 1.0);
+			}];
+
+			// Add index label to first subrange view
+			UIView *subview = [subviews firstObject];
+			if (subview)
+			{
+				CGRect subviewFrame = subview.frame;
+				UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(subviewFrame.origin.x, subviewFrame.origin.y,
+																		   10.0, 8.0)];
+
+				[label setAutoresizingMask:UIViewAutoresizingFlexibleRightMargin|UIViewAutoresizingFlexibleBottomMargin];
+				[label setFont:[UIFont monospacedDigitSystemFontOfSize:8.0 weight:UIFontWeightSemibold]];
+				[label setTextColor:[UIColor whiteColor]];
+				[label setBackgroundColor:[UIColor colorSeriesWithIndex:index]];
+				[label setText:[NSString stringWithFormat:@"%lu", (unsigned long)(index + 1)]];
+				[label sizeToFit];
+
+				if ([subview superview])
+				{
+					// Adding as a subview to `subview` causes the label to be cropped (even if clipToBounds is off),
+					// so we add the label to the same view as the subview, this way it always shows in front.
+					[[subview superview] insertSubview:label aboveSubview:subview];
+
+					// Because the label will live at the same level as all highlight views, we need to add them to the
+					// highlight arrays as well:
+					[views addObject:label];
+					[self.secondaryHighlights addObject:label];
+
+					// Prevent setting the background color to the main view color
+					label.tag = ICSubRangeViewTag;
+				}
+				else
+				{
+					// If a superview is not available, we add the label as a subview to `subview`, which causes
+					// clipping (see comment on the if true case above).
+					CGRect labelFrame = label.frame;
+					label.frame = CGRectMake(0, 0, labelFrame.size.width, labelFrame.size.height);
+					[subview addSubview:label];
+				}
+
+				// Let the label show through the view corners
+				[subview setClipsToBounds:NO];
+			}
+
+			[views addObjectsFromArray:subviews];
+		}
+	}
+
+	[views addObjectsFromArray:[self addHighlightAtTextRange:textRange addToView:inserts]];
+
+	return views;
 }
 
 // Return value: array of highlights for text range
-- (NSMutableArray *)addHighlightAtTextRange:(UITextRange *)textRange insertsIntoSecondaryHighlights:(BOOL)inserts
+- (NSMutableArray *)addHighlightAtTextRange:(UITextRange *)textRange addToView:(BOOL)inserts
 {
     NSMutableArray *highlightsForRange = [[NSMutableArray alloc] init];
     
@@ -671,51 +774,53 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
         NSRange cachedRange = self.cachedRange;
         NSUInteger cachedRangeLocation = cachedRange.location;
         NSRange maskedRange = ICRangeOffset(NSIntersectionRange(cachedRange, visibleRange), -cachedRangeLocation);
-        NSMutableArray *rangeValues = [[NSMutableArray alloc] init];
-        
-        for (NSValue *rangeValue in [self.regex rangesOfMatchesInRange:maskedRange])
-            [rangeValues addObject:[NSValue valueWithRange:ICRangeOffset(rangeValue.rangeValue, cachedRangeLocation)]];
+		NSMutableArray<NSTextCheckingResult *> *results = [[self.regex resultsOfMatchesInRange:maskedRange] mutableCopy];
         
         ///// ADD SECONDARY HIGHLIGHTS /////
         
-        if (rangeValues.count)
+        if (results.count)
         {
             // Remove already present highlights
             NSMutableDictionary *highlightsByRange = self.highlightsByRange;
-            
-            NSMutableArray *rangesArray = [rangeValues mutableCopy];
             NSMutableIndexSet *indexesToRemove = [[NSMutableIndexSet alloc] init];
-            [rangeValues enumerateObjectsUsingBlock:^(NSValue *rangeValue, NSUInteger idx, BOOL *stop){
+            [results enumerateObjectsUsingBlock:^(NSTextCheckingResult *result, NSUInteger idx, BOOL *stop){
                 ICUnusedParameter(stop);
-                if ([highlightsByRange objectForKey:rangeValue])
+                if ([highlightsByRange objectForKey:[NSValue valueWithRange:ICRangeOffset(result.range, cachedRangeLocation)]])
                     [indexesToRemove addIndex:idx];
             }];
-            [rangesArray removeObjectsAtIndexes:indexesToRemove];
+            [results removeObjectsAtIndexes:indexesToRemove];
             indexesToRemove = nil;
             
-            if (rangesArray.count)
+            if (results.count)
             {
                 // Get text range of first result
-                NSValue *firstRangeValue = [rangesArray objectAtIndex:0];
-                NSRange previousRange = [firstRangeValue rangeValue];
+                NSTextCheckingResult *firstResult = [results objectAtIndex:0];
+                NSRange previousRange = ICRangeOffset(firstResult.range, cachedRangeLocation);
                 
                 UITextPosition *start = [self positionFromPosition:visibleStartPosition offset:(NSInteger)(previousRange.location - visibleRange.location)];
                 UITextPosition *end = [self positionFromPosition:start offset:(NSInteger)previousRange.length];
                 UITextRange *textRange = [self textRangeFromPosition:start toPosition:end];
                 
                 // First range
-                [highlightsByRange setObject:[self addHighlightAtTextRange:textRange] forKey:firstRangeValue];
-                [rangesArray removeObjectAtIndex:0];
+				NSArray *subranges = [self makeSubTextRangesForResult:firstResult resultStartPosition:start];
+				[highlightsByRange setObject:[self addHighlightAtTextRange:textRange subranges:subranges addToView:YES]
+									  forKey:[NSValue valueWithRange:previousRange]];
+                [results removeObjectAtIndex:0];
                 
-                if (rangesArray.count)
+                if (results.count)
                 {
-                    for (NSValue *rangeValue in rangesArray)
+                    for (NSTextCheckingResult *result in results)
                     {
-                        NSRange range = [rangeValue rangeValue];
+                        NSRange range = ICRangeOffset([result range], cachedRangeLocation);
                         start = [self positionFromPosition:end offset:(NSInteger)(range.location - (previousRange.location + previousRange.length))];
                         end = [self positionFromPosition:start offset:(NSInteger)range.length];
                         textRange = [self textRangeFromPosition:start toPosition:end];
-                        [highlightsByRange setObject:[self addHighlightAtTextRange:textRange] forKey:rangeValue];
+
+						NSArray *subranges = [self makeSubTextRangesForResult:result resultStartPosition:start];
+						[highlightsByRange setObject:[self addHighlightAtTextRange:textRange
+																		 subranges:subranges
+																		 addToView:YES]
+											  forKey:[NSValue valueWithRange:range]];
                         previousRange = range;
                     }
                 }
@@ -734,6 +839,32 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
     }
     
     [self setPrimaryHighlightAtRange:[self rangeOfFoundString]];
+}
+
+- (NSArray<UITextRange *> *)makeSubTextRangesForResult:(NSTextCheckingResult *)result
+								   resultStartPosition:(UITextPosition *)start
+{
+	NSMutableArray<UITextRange *> *subranges = nil;
+	NSUInteger numberOfRanges = [result numberOfRanges];
+	if (numberOfRanges > 1)
+	{
+		subranges = [NSMutableArray arrayWithCapacity:numberOfRanges - 1];
+		NSRange resultRange = [result range];
+
+		// We skip the first range, as it is the main range (subranges start from index 1)
+		for (NSUInteger index = 1; index < numberOfRanges; index++)
+		{
+			NSRange subRange = [result rangeAtIndex:index];
+
+			UITextPosition *substart = [self positionFromPosition:start offset:(NSInteger)(subRange.location - resultRange.location)];
+			UITextPosition *subend = [self positionFromPosition:substart offset:(NSInteger)subRange.length];
+			UITextRange *subTextRange = [self textRangeFromPosition:substart toPosition:subend];
+
+			[subranges addObject:subTextRange];
+		}
+	}
+
+	return subranges;
 }
 
 // Used in init overrides
@@ -769,12 +900,15 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
     // Move primary highlights to secondary highlights array
     NSMutableArray *primaryHighlights = self.primaryHighlights;
     NSMutableOrderedSet *secondaryHighlights = self.secondaryHighlights;
-    UIColor *secondaryHighlightColor = self.secondaryHighlightColor;
     
-    for (UIView *hl in primaryHighlights)
+    for (UIView *highlight in primaryHighlights)
     {
-        hl.backgroundColor = secondaryHighlightColor;
-        [secondaryHighlights addObject:hl];
+		if ([highlight tag] != ICSubRangeViewTag)
+		{
+			[self configureHighlightAsSecondary:highlight];
+		}
+
+        [secondaryHighlights addObject:highlight];
     }
     [primaryHighlights removeAllObjects];
 }
@@ -928,16 +1062,18 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
     [self initializePrimaryHighlights];
     NSMutableArray *primaryHighlights = self.primaryHighlights;
     NSMutableOrderedSet *secondaryHighlights = self.secondaryHighlights;
-    UIColor *primaryHighlightColor = self.primaryHighlightColor;
     
     NSValue *rangeValue = [NSValue valueWithRange:range];
     NSMutableArray *highlightsForRange = [self.highlightsByRange objectForKey:rangeValue];
     
-    for (UIView *hl in highlightsForRange)
+    for (UIView *highlight in highlightsForRange)
     {
-        hl.backgroundColor = primaryHighlightColor;
-        [primaryHighlights addObject:hl];
-        [secondaryHighlights removeObject:hl];
+		if ([highlight tag] != ICSubRangeViewTag)
+		{
+			[self configureHighlightAsPrimary:highlight];
+		}
+        [primaryHighlights addObject:highlight];
+        [secondaryHighlights removeObject:highlight];
     }
 }
 
@@ -1067,12 +1203,17 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 
 - (void)setFrame:(CGRect)frame
 {
-    if (highlightingSupported && self.highlightsByRange.count)
-    {
-        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(initializeHighlights) object:nil];
-        [self performSelector:@selector(initializeHighlights) withObject:nil afterDelay:0.1];
-    }
+	[self setNeedsInitializeHighlights];
     [super setFrame:frame];
+}
+
+- (void)setNeedsInitializeHighlights
+{
+	if (highlightingSupported && self.highlightsByRange.count)
+	{
+		[NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(initializeHighlights) object:nil];
+		[self performSelector:@selector(initializeHighlights) withObject:nil afterDelay:0.1];
+	}
 }
 
 #pragma mark - Fixes
