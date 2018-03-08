@@ -106,6 +106,9 @@ typedef enum
 /// Toggles highlights for search results (default = YES).
 @property (nonatomic) BOOL highlightSearchResults;
 
+/// Toggles whether capture groups are highlighted if present in the search results (default = YES).
+@property (nonatomic) BOOL highlightCaptureGroups;
+
 /**
  Scroll position (default = ICTextViewScrollPositionNone).
  

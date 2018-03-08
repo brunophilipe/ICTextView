@@ -187,6 +187,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 @synthesize highlightCornerRadius = _highlightCornerRadius;
 @synthesize highlightsByRange = _highlightsByRange;
 @synthesize highlightSearchResults = _highlightSearchResults;
+@synthesize highlightCaptureGroups = _highlightCaptureGroups;
 @synthesize maxHighlightedMatches = _maxHighlightedMatches;
 @synthesize performedNewScroll = _performedNewScroll;
 @synthesize primaryHighlightColor = _primaryHighlightColor;
@@ -645,7 +646,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 {
 	NSMutableArray<UIView *> *views = [NSMutableArray array];
 
-	if (subranges && [subranges count] > 0)
+	if ([self highlightCaptureGroups] && subranges && [subranges count] > 0)
 	{
 		for (NSUInteger index = 0, count = [subranges count]; index < count; index++)
 		{
@@ -909,6 +910,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
     _highlightCornerRadius = -1.0;
     _highlightsByRange = [[NSMutableDictionary alloc] init];
     _highlightSearchResults = YES;
+	_highlightCaptureGroups = YES;
     _maxHighlightedMatches = 100;
     _primaryHighlights = [[NSMutableArray alloc] init];
     _primaryHighlightColor = [UIColor colorWithRed:150.0f/255.0f green:200.0f/255.0f blue:1.0 alpha:1.0];
