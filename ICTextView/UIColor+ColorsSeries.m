@@ -11,7 +11,7 @@
 
 + (UIColor *)colorSeriesWithIndex:(NSUInteger)index
 {
-	CGFloat hue = ((35 * index) % 360) / 360.0;
+	CGFloat hue = (90 + ((index % 2 == 0 ? 80 : -40) * index) % 360) / 360.0;
 	return [UIColor colorWithHue:hue saturation:1.0 brightness:0.66 alpha:1.0];
 }
 

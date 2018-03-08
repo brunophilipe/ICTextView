@@ -100,9 +100,9 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 @interface ICTextView ()
 
 // Highlights
-@property (nonatomic, strong) NSMutableDictionary *highlightsByRange;
-@property (nonatomic, strong) NSMutableArray *primaryHighlights;
-@property (nonatomic, strong) NSMutableOrderedSet *secondaryHighlights;
+@property (nonatomic, strong) NSMutableDictionary<NSValue *, NSMutableArray<UIView *> *> *highlightsByRange;
+@property (nonatomic, strong) NSMutableArray<UIView *> *primaryHighlights;
+@property (nonatomic, strong) NSMutableOrderedSet<UIView *> *secondaryHighlights;
 
 // Work
 @property (nonatomic, unsafe_unretained) NSTimer *autoRefreshTimer;
@@ -550,29 +550,78 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 
 - (void)configureHighlightAsPrimary:(UIView *)highlight
 {
-	highlight.layer.borderColor = [self.primaryHighlightColor CGColor];
-	highlight.backgroundColor = [self.primaryHighlightColor colorWithAlphaComponent:0.4];
+	highlight.layer.borderWidth = 0.0;
+	highlight.backgroundColor = [self.primaryHighlightColor colorWithAlphaComponent:1.0];
+
+	[[[highlight subviews] firstObject] setHidden:NO];
 }
 
 - (void)configureHighlightAsSecondary:(UIView *)highlight
 {
-	highlight.layer.borderColor = [self.secondaryHighlightColor CGColor];
-	highlight.backgroundColor = [self.secondaryHighlightColor colorWithAlphaComponent:0.05];
+	highlight.layer.borderWidth = 1.0;
+	highlight.backgroundColor = [UIColor clearColor];
+
+	[[[highlight subviews] firstObject] setHidden:YES];
 }
 
 - (void)configureHighlightAsSubRange:(UIView *)highlight index:(NSUInteger)index
 {
 	highlight.layer.borderColor = [[UIColor colorSeriesWithIndex:index] CGColor];
-	highlight.backgroundColor = [UIColor clearColor];
+	highlight.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.1];
 }
 
 // Return value: highlight UIView
 - (UIView *)createHighlightForRect:(CGRect)frame
 {
-	UIView *highlight = [[UIView alloc] initWithFrame:CGRectInset(frame, 0.0, 0.5)];
+	// Make sure the racts align properly on the screen, as `selectionRectsForRange` is not perfectly consistent.
+	// We also subtract 2 pixels so the highlight views don't overlap.
+	frame = CGRectMake(frame.origin.x, round(frame.origin.y) + 1.0, frame.size.width, round(frame.size.height) - 2.0);
+
 	CGFloat cornerRadius = self.highlightCornerRadius;
-	highlight.layer.cornerRadius = (cornerRadius < 0.0 ? frame.size.height * 0.2f : cornerRadius);
+	cornerRadius = (cornerRadius < 0.0 ? frame.size.height * 0.2f : cornerRadius);
+
+	// Create main highlight view
+	UIView *highlight = [[UIView alloc] initWithFrame:frame];
+	highlight.layer.cornerRadius = cornerRadius;
+	highlight.layer.borderColor = [self.secondaryHighlightColor CGColor];
 	highlight.layer.borderWidth = 1.0;
+
+	// Create gradient overlay
+	CAGradientLayer *gradientLayer = [[CAGradientLayer alloc] init];
+	[gradientLayer setFrame:[highlight bounds]];
+	[gradientLayer setColors:@[(id)[[UIColor whiteColor] CGColor], (id)[[UIColor clearColor] CGColor]]];
+	[gradientLayer setOpacity:0.15];
+	[gradientLayer setCornerRadius:cornerRadius];
+	[highlight.layer addSublayer:gradientLayer];
+
+	if (frame.size.width > 0)
+	{
+		// If this highlight has any content, create a text view
+		// We don't want to layout the text again, or change its attributes, as those are expensive operations.
+		// Instead, we create a view and set its background color to the color we want to draw the text.
+		UIView *textFillView = [[UIView alloc] initWithFrame:[highlight bounds]];
+		[textFillView setBackgroundColor:[self backgroundColor]];
+		[textFillView setHidden:YES];
+
+		// Then we create an image buffer context
+		CGFloat scale = [[UIScreen mainScreen] scale];
+		UIGraphicsBeginImageContextWithOptions(frame.size, false, scale);
+		CGContextRef context = UIGraphicsGetCurrentContext();
+
+		// And draw the content of the text subview (and only the frame that's covered by the highlight view) into the
+		// buffer, create an image from this buffer, and set it as the mask view of the `textFillView`.
+		CGContextTranslateCTM(context, frame.origin.x * -1, frame.origin.y * -1);
+		[[self textSubview] drawRect:frame];
+		UIImage *viewImage = UIGraphicsGetImageFromCurrentImageContext();
+		UIGraphicsEndImageContext();
+
+		[textFillView setMaskView:[[UIImageView alloc] initWithImage:[UIImage imageWithCGImage:[viewImage CGImage]
+																					 scale:2.0
+																			   orientation:UIImageOrientationUp]]];
+
+		[highlight addSubview:textFillView];
+	}
+
 	[self configureHighlightAsSecondary:highlight];
 	return highlight;
 }
@@ -616,17 +665,14 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 				ICUnusedParameter(stop);
 				[self configureHighlightAsSubRange:subview index:index];
 				subview.tag = ICSubRangeViewTag;
-
-				// Inset the view a little bit, to show the border of the main view
-				subview.frame = CGRectInset(subview.frame, 0.0, 1.0);
 			}];
 
 			// Add index label to first subrange view
 			UIView *subview = [subviews firstObject];
 			if (subview)
 			{
-				CGRect subviewFrame = subview.frame;
-				UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(subviewFrame.origin.x, subviewFrame.origin.y,
+				CGRect frame = subview.frame;
+				UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(frame.origin.x, frame.origin.y,
 																		   10.0, 8.0)];
 
 				[label setAutoresizingMask:UIViewAutoresizingFlexibleRightMargin|UIViewAutoresizingFlexibleBottomMargin];
@@ -636,28 +682,17 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 				[label setText:[NSString stringWithFormat:@"%lu", (unsigned long)(index + 1)]];
 				[label sizeToFit];
 
-				if ([subview superview])
-				{
-					// Adding as a subview to `subview` causes the label to be cropped (even if clipToBounds is off),
-					// so we add the label to the same view as the subview, this way it always shows in front.
-					[[subview superview] insertSubview:label aboveSubview:subview];
+				// Adding as a subview to `subview` causes the label to be cropped (even if clipToBounds is off),
+				// so we add the label to the same view as the subview, this way it always shows in front.
+				[self insertSubview:label aboveSubview:subview];
 
-					// Because the label will live at the same level as all highlight views, we need to add them to the
-					// highlight arrays as well:
-					[views addObject:label];
-					[self.secondaryHighlights addObject:label];
+				// Because the label will live at the same level as all highlight views, we need to add them to the
+				// highlight arrays as well:
+				[views addObject:label];
+				[self.secondaryHighlights addObject:label];
 
-					// Prevent setting the background color to the main view color
-					label.tag = ICSubRangeViewTag;
-				}
-				else
-				{
-					// If a superview is not available, we add the label as a subview to `subview`, which causes
-					// clipping (see comment on the if true case above).
-					CGRect labelFrame = label.frame;
-					label.frame = CGRectMake(0, 0, labelFrame.size.width, labelFrame.size.height);
-					[subview addSubview:label];
-				}
+				// Prevent setting the background color to the main view color
+				label.tag = ICSubRangeViewTag;
 
 				// Let the label show through the view corners
 				[subview setClipsToBounds:NO];
