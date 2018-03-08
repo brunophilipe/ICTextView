@@ -180,6 +180,12 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
     return _textSubview;
 }
 
+- (void)setHighlightCaptureGroups:(BOOL)highlightCaptureGroups
+{
+	_highlightCaptureGroups = highlightCaptureGroups;
+	[self setNeedsLayoutHighlights];
+}
+
 // Others
 @synthesize animatedSearch = _animatedSearch;
 @synthesize appliedSelectionFix = _appliedSelectionFix;
@@ -926,6 +932,15 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
                                                object:self];
 }
 
+- (void)initializeHighlightsAndReapplySearch
+{
+	if ([self regex])
+	{
+		[self initializeHighlights];
+		[self highlightOccurrencesInMaskedVisibleRange];
+	}
+}
+
 - (void)initializeHighlights
 {
     [self initializePrimaryHighlights];
@@ -1238,18 +1253,25 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
     }
 }
 
-- (void)setFrame:(CGRect)frame
+- (void)setBounds:(CGRect)bounds
 {
-	[self setNeedsInitializeHighlights];
-    [super setFrame:frame];
+	CGFloat oldWidth = [self bounds].size.width;
+
+	[super setBounds:bounds];
+
+	// Set bounds is called when the view is scrolled too, so we ignore those calls
+	if (oldWidth != bounds.size.width)
+	{
+		[self setNeedsLayoutHighlights];
+	}
 }
 
-- (void)setNeedsInitializeHighlights
+- (void)setNeedsLayoutHighlights
 {
 	if (highlightingSupported && self.highlightsByRange.count)
 	{
 		[NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(initializeHighlights) object:nil];
-		[self performSelector:@selector(initializeHighlights) withObject:nil afterDelay:0.1];
+		[self performSelector:@selector(initializeHighlightsAndReapplySearch) withObject:nil afterDelay:0.2];
 	}
 }
 
