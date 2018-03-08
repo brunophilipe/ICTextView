@@ -590,6 +590,14 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 	// Create main highlight view
 	UIView *highlight = [[UIView alloc] initWithFrame:frame];
 	highlight.layer.cornerRadius = cornerRadius;
+
+	return highlight;
+}
+
+// Return value: highlight UIView
+- (UIView *)addHighlightAtRect:(CGRect)frame
+{
+	UIView *highlight = [self createHighlightForRect:frame];
 	highlight.layer.borderColor = [self.secondaryHighlightColor CGColor];
 	highlight.layer.borderWidth = 1.0;
 
@@ -598,7 +606,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 	[gradientLayer setFrame:[highlight bounds]];
 	[gradientLayer setColors:@[(id)[[UIColor whiteColor] CGColor], (id)[[UIColor clearColor] CGColor]]];
 	[gradientLayer setOpacity:0.15];
-	[gradientLayer setCornerRadius:cornerRadius];
+	[gradientLayer setCornerRadius:highlight.layer.cornerRadius];
 	[highlight.layer addSublayer:gradientLayer];
 
 	if (frame.size.width > 0)
@@ -623,20 +631,13 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 		UIGraphicsEndImageContext();
 
 		[textFillView setMaskView:[[UIImageView alloc] initWithImage:[UIImage imageWithCGImage:[viewImage CGImage]
-																					 scale:2.0
-																			   orientation:UIImageOrientationUp]]];
+																						 scale:2.0
+																				   orientation:UIImageOrientationUp]]];
 
 		[highlight addSubview:textFillView];
 	}
 
 	[self configureHighlightAsSecondary:highlight];
-	return highlight;
-}
-
-// Return value: highlight UIView
-- (UIView *)addHighlightAtRect:(CGRect)frame
-{
-	UIView *highlight = [self createHighlightForRect:frame];
     [self.secondaryHighlights addObject:highlight];
     [self insertSubview:highlight aboveSubview:self.textSubview];
     return highlight;
