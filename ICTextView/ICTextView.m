@@ -39,6 +39,7 @@
 #import "ICPreprocessor.h"
 #import "ICRangeUtils.h"
 #import "ICRegularExpression.h"
+#import "UIColor+IsDark.h"
 
 #import <Availability.h>
 #import <QuartzCore/QuartzCore.h>
@@ -183,6 +184,11 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 {
 	_highlightCaptureGroups = highlightCaptureGroups;
 	[self setNeedsLayoutHighlights];
+}
+
+- (UIColor *)captureLabelTextColor
+{
+	return [[self captureHighlightColor] isDarkColor] ? [UIColor whiteColor] : [UIColor darkTextColor];
 }
 
 // Others
@@ -691,7 +697,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 
 				[label setAutoresizingMask:UIViewAutoresizingFlexibleRightMargin|UIViewAutoresizingFlexibleBottomMargin];
 				[label setFont:[UIFont monospacedDigitSystemFontOfSize:8.0 weight:UIFontWeightSemibold]];
-				[label setTextColor:[UIColor whiteColor]];
+				[label setTextColor:[self captureLabelTextColor]];
 				[label setBackgroundColor:[self captureHighlightColor]];
 				[label setText:[NSString stringWithFormat:@"%lu", (unsigned long)(index + 1)]];
 				[label sizeToFit];
