@@ -89,8 +89,14 @@ typedef enum
 /// Color of the primary search highlight (default = RGB 150/200/255).
 @property (nonatomic, strong, nonnull) UIColor *primaryHighlightColor UI_APPEARANCE_SELECTOR;
 
+/// Color of the primary search highlight text (default = RGB 5/5/5).
+@property (nonatomic, strong, nonnull) UIColor *primaryHighlightTextColor UI_APPEARANCE_SELECTOR;
+
 /// Color of the secondary search highlights (default = RGB 215/240/255).
 @property (nonatomic, strong, nonnull) UIColor *secondaryHighlightColor UI_APPEARANCE_SELECTOR;
+
+/// Color of the search highlights capture groups (default = RGB 71/94/120).
+@property (nonatomic, strong, nonnull) UIColor *captureHighlightColor UI_APPEARANCE_SELECTOR;
 
 /// Highlight corner radius (default = fontSize * 0.2).
 @property (nonatomic) CGFloat highlightCornerRadius UI_APPEARANCE_SELECTOR;

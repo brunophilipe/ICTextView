@@ -39,7 +39,6 @@
 #import "ICPreprocessor.h"
 #import "ICRangeUtils.h"
 #import "ICRegularExpression.h"
-#import "UIColor+ColorsSeries.h"
 
 #import <Availability.h>
 #import <QuartzCore/QuartzCore.h>
@@ -383,7 +382,22 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
     UITextPosition *startPosition = [self positionFromPosition:self.beginningOfDocument offset:(NSInteger)range.location];
     UITextPosition *endPosition = [self positionFromPosition:startPosition offset:(NSInteger)range.length];
     UITextRange *textRange = [self textRangeFromPosition:startPosition toPosition:endPosition];
-    CGRect rect = [self firstRectForRange:textRange];
+	NSArray<UITextSelectionRect *> *rects = [self selectionRectsForRange:textRange];
+	CGRect rect = CGRectZero;
+
+	// We need to accound for the bounds of all range lines.
+	// A quick way of doing it is by applying a union to all rects.
+	for (UITextSelectionRect *selectionRect in rects)
+	{
+		if (rect.size.width == 0)
+		{
+			rect = [selectionRect rect];
+		}
+		else
+		{
+			rect = CGRectUnion(rect, [selectionRect rect]);
+		}
+	}
     
     // Scroll to visible rect
     [self scrollRectToVisible:rect animated:animated consideringInsets:considerInsets];
@@ -573,7 +587,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 
 - (void)configureHighlightAsSubRange:(UIView *)highlight index:(NSUInteger)index
 {
-	highlight.layer.borderColor = [[UIColor colorSeriesWithIndex:index] CGColor];
+	highlight.layer.borderColor = [[self captureHighlightColor] CGColor];
 	highlight.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.1];
 }
 
@@ -601,21 +615,13 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 	highlight.layer.borderColor = [self.secondaryHighlightColor CGColor];
 	highlight.layer.borderWidth = 1.0;
 
-	// Create gradient overlay
-	CAGradientLayer *gradientLayer = [[CAGradientLayer alloc] init];
-	[gradientLayer setFrame:[highlight bounds]];
-	[gradientLayer setColors:@[(id)[[UIColor whiteColor] CGColor], (id)[[UIColor clearColor] CGColor]]];
-	[gradientLayer setOpacity:0.15];
-	[gradientLayer setCornerRadius:highlight.layer.cornerRadius];
-	[highlight.layer addSublayer:gradientLayer];
-
 	if (frame.size.width > 0)
 	{
 		// If this highlight has any content, create a text view
 		// We don't want to layout the text again, or change its attributes, as those are expensive operations.
 		// Instead, we create a view and set its background color to the color we want to draw the text.
 		UIView *textFillView = [[UIView alloc] initWithFrame:[highlight bounds]];
-		[textFillView setBackgroundColor:[self backgroundColor]];
+		[textFillView setBackgroundColor:[self primaryHighlightTextColor]];
 		[textFillView setHidden:YES];
 
 		// Then we create an image buffer context
@@ -686,7 +692,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 				[label setAutoresizingMask:UIViewAutoresizingFlexibleRightMargin|UIViewAutoresizingFlexibleBottomMargin];
 				[label setFont:[UIFont monospacedDigitSystemFontOfSize:8.0 weight:UIFontWeightSemibold]];
 				[label setTextColor:[UIColor whiteColor]];
-				[label setBackgroundColor:[UIColor colorSeriesWithIndex:index]];
+				[label setBackgroundColor:[self captureHighlightColor]];
 				[label setText:[NSString stringWithFormat:@"%lu", (unsigned long)(index + 1)]];
 				[label sizeToFit];
 
@@ -921,11 +927,13 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
     _maxHighlightedMatches = 100;
     _primaryHighlights = [[NSMutableArray alloc] init];
     _primaryHighlightColor = [UIColor colorWithRed:150.0f/255.0f green:200.0f/255.0f blue:1.0 alpha:1.0];
+	_primaryHighlightTextColor = [UIColor colorWithRed:5.0f/255.0f green:5.0f/255.0f blue:5.0f/255.0f alpha:1.0];
     _scrollAutoRefreshDelay = 0.2;
     _searchIndex = ICSearchIndexAuto;
     _searchRange = ICRangeMax;
     _secondaryHighlights = [[NSMutableOrderedSet alloc] init];
     _secondaryHighlightColor = [UIColor colorWithRed:215.0f/255.0f green:240.0f/255.0f blue:1.0 alpha:1.0];
+	_captureHighlightColor = [UIColor colorWithRed:71.0f/255.0f green:94.0f/255.0f blue:120.0f/255.0f alpha:1.0];
     
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(textChanged)
