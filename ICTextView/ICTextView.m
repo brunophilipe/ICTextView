@@ -643,7 +643,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 		UIGraphicsEndImageContext();
 
 		[textFillView setMaskView:[[UIImageView alloc] initWithImage:[UIImage imageWithCGImage:[viewImage CGImage]
-																						 scale:2.0
+																						 scale:scale
 																				   orientation:UIImageOrientationUp]]];
 
 		[highlight addSubview:textFillView];
