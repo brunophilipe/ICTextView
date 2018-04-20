@@ -602,7 +602,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 {
 	// Make sure the racts align properly on the screen, as `selectionRectsForRange` is not perfectly consistent.
 	// We also subtract 2 pixels so the highlight views don't overlap.
-	frame = CGRectMake(frame.origin.x, round(frame.origin.y) + 1.0, frame.size.width, round(frame.size.height) - 2.0);
+	frame = CGRectMake(frame.origin.x, floor(frame.origin.y) + 1.0, frame.size.width, floor(frame.size.height) - 2.0);
 
 	CGFloat cornerRadius = self.highlightCornerRadius;
 	cornerRadius = (cornerRadius < 0.0 ? frame.size.height * 0.2f : cornerRadius);
@@ -620,6 +620,10 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 	UIView *highlight = [self createHighlightForRect:frame];
 	highlight.layer.borderColor = [self.secondaryHighlightColor CGColor];
 	highlight.layer.borderWidth = 1.0;
+
+	// `createHighlightForRect` will "sanitize" the frame given to it, in order to make frames on adjacent words look
+	// more consistent on the screen. Therefore we need to use the sanitized frame to process the overlay image.
+	frame = [highlight frame];
 
 	if (frame.size.width > 0)
 	{
