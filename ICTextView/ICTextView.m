@@ -540,7 +540,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 		NSString *originalString = [[textStorage string] substringWithRange:range];
 		NSRange undoRange = NSMakeRange(range.location, [replacement length]);
 
-		[[self undoManager] registerUndoWithTarget:self handler:^(id  _Nonnull target) {
+		[undoManager registerUndoWithTarget:self handler:^(id  _Nonnull target) {
 			[target replaceRangeRegisteringUndo:undoRange withString:originalString];
 		}];
 	}
