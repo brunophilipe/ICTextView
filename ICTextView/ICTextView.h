@@ -272,10 +272,17 @@ typedef enum
 /**
  Replace the current result (if any) with the given template.
 
- @param template The template to insert in place of the matched result.
+ @param regexTemplate The template to insert in place of the matched result.
  @return `YES` if the replacement was successful, otherwise `NO`.
  */
-- (BOOL)replaceCurrentMatchWithTemplate:(nonnull NSString *)template;
+- (BOOL)replaceCurrentMatchWithTemplate:(nonnull NSString *)regexTemplate;
+
+/**
+ Replace all the current results (if any) with the given template.
+
+ @param regexTemplate The template to insert in place of the matched result.
+ */
+- (void)replaceAllCurrentMatchesWithTemplate:(nonnull NSString *)regexTemplate;
 
 #pragma mark - Deprecated
 

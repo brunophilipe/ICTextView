@@ -480,7 +480,13 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 
 #pragma mark - Replacement
 
-- (BOOL)replaceCurrentMatchWithTemplate:(nonnull NSString *)template
+- (BOOL)replaceCurrentMatchWithTemplate:(nonnull NSString *)regexTemplate
+{
+	return [self replaceCurrentMatchWithTemplate:regexTemplate
+				 automaticallyAdvanceToNextMatch:YES];
+}
+
+- (BOOL)replaceCurrentMatchWithTemplate:(nonnull NSString *)regexTemplate automaticallyAdvanceToNextMatch:(BOOL)advance
 {
 	NSTextCheckingResult *result = [_regex resultOfCurrentMatch];
 	NSRegularExpression *regex = [result regularExpression];
@@ -492,7 +498,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 	NSString *replacementString = [regex replacementStringForResult:result
 														   inString:[[self textStorage] string]
 															 offset:0
-														   template:template];
+														   template:regexTemplate];
 
 	// Calculate how many characters we will add to the text storage (negative if we replaced for less characters)
 	NSUInteger lengthDelta = [replacementString length] - [result range].length;
@@ -525,7 +531,21 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 		[_regex advanceToFirstResultAfterLocation:locationOfNextResultPlusDelta];
 	}
 
-	return [self commitMatchingIfFound];
+	if (!advance)
+	{
+		return [self rangeOfFoundString].location != NSNotFound;
+	}
+	else
+	{
+		return [self commitMatchingIfFound];
+	}
+}
+
+- (void)replaceAllCurrentMatchesWithTemplate:(nonnull NSString *)regexTemplate
+{
+	while ([self rangeOfFoundString].location != NSNotFound) {
+		[self replaceCurrentMatchWithTemplate:regexTemplate automaticallyAdvanceToNextMatch:NO];
+	}
 }
 
 #pragma mark - Private methods
