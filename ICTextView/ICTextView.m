@@ -627,22 +627,27 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 
 	if (frame.size.width > 0)
 	{
-		// If this highlight has any content, create a text view
-		// We don't want to layout the text again, or change its attributes, as those are expensive operations.
-		// Instead, we create a view and set its background color to the color we want to draw the text.
+		// If this highlight has any content, create a view that will show the range text
+		// To do that we create a view and set its background color to the color we want to draw the text.
 		UIView *textFillView = [[UIView alloc] initWithFrame:[highlight bounds]];
 		[textFillView setBackgroundColor:[self primaryHighlightTextColor]];
 		[textFillView setHidden:YES];
 
 		// Then we create an image buffer context
-		CGFloat scale = [[UIScreen mainScreen] scale];
+		CGFloat scale = MAX([[[self window] screen] scale], 1.0);
 		UIGraphicsBeginImageContextWithOptions(frame.size, false, scale);
 		CGContextRef context = UIGraphicsGetCurrentContext();
 
 		// And draw the content of the text subview (and only the frame that's covered by the highlight view) into the
 		// buffer, create an image from this buffer, and set it as the mask view of the `textFillView`.
 		CGContextTranslateCTM(context, frame.origin.x * -1, frame.origin.y * -1);
-		[[self textSubview] drawRect:frame];
+
+		// Get the glyphs under the frame and draw them into the existing context
+		UIEdgeInsets edgeInsets = [self totalContentInset];
+		NSLayoutManager *layoutManager = [self layoutManager];
+		NSRange range = [layoutManager glyphRangeForBoundingRect:frame inTextContainer:[self textContainer]];
+		[layoutManager drawGlyphsForGlyphRange:range atPoint:CGPointMake(edgeInsets.left, edgeInsets.top)];
+
 		UIImage *viewImage = UIGraphicsGetImageFromCurrentImageContext();
 		UIGraphicsEndImageContext();
 
