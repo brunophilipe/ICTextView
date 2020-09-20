@@ -508,7 +508,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 	NSUInteger locationOfNextResultPlusDelta = nextResult.range.location + lengthDelta;
 
 	[self replaceRangeRegisteringUndo:result.range withString:replacementString];
-	[self textChanged];
+	[self textChangedAndInformDelegate];
 
 	// Re-Initialize search
 	if (![self initializeSearchWithPattern:originalPattern])
@@ -562,6 +562,7 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 
 		[undoManager registerUndoWithTarget:self handler:^(id  _Nonnull target) {
 			[target replaceRangeRegisteringUndo:undoRange withString:originalString];
+			[target textChangedAndInformDelegate];
 		}];
 	}
 
@@ -1170,6 +1171,14 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 		}
 		[primaryHighlights addObject:highlight];
 		[secondaryHighlights removeObject:highlight];
+	}
+}
+
+- (void)textChangedAndInformDelegate
+{
+	[self textChanged];
+	if ([[self delegate] respondsToSelector:@selector(textViewDidChange:)]) {
+		[[self delegate] textViewDidChange:self];
 	}
 }
 
