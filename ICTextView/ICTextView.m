@@ -550,23 +550,32 @@ NS_INLINE BOOL ICCGRectsEqualOnScreen(CGRect r1, CGRect r2)
 
 #pragma mark - Private methods
 
-- (void)replaceRangeRegisteringUndo:(NSRange)range withString:(nonnull NSString *)replacement
+- (void)replaceRangeRegisteringUndo:(NSRange)rangeToReplace withString:(nonnull NSString *)replacementString
 {
 	NSTextStorage *textStorage = [self textStorage];
 	NSUndoManager *undoManager = [self undoManager];
+	NSRange selectedRange = [self selectedRange];
 
 	if (undoManager)
 	{
-		NSString *originalString = [[textStorage string] substringWithRange:range];
-		NSRange undoRange = NSMakeRange(range.location, [replacement length]);
+		NSString *originalString = [[textStorage string] substringWithRange:rangeToReplace];
+		NSRange undoRange = NSMakeRange(rangeToReplace.location, [replacementString length]);
 
 		[undoManager registerUndoWithTarget:self handler:^(id  _Nonnull target) {
 			[target replaceRangeRegisteringUndo:undoRange withString:originalString];
+			[target setSelectedRange:selectedRange];
 			[target textChangedAndInformDelegate];
 		}];
 	}
 
-	[textStorage replaceCharactersInRange:range withString:replacement];
+	[textStorage replaceCharactersInRange:rangeToReplace withString:replacementString];
+
+	if (![undoManager isUndoing]) {
+		NSInteger lengthDifference = [replacementString length] - rangeToReplace.length;
+		NSRange newSelectedRange = NSMakeRange(NSMaxRange(rangeToReplace) + lengthDifference, 0);
+
+		[self setSelectedRange:newSelectedRange];
+	}
 }
 
 - (BOOL)commitMatchingIfFound
